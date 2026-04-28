@@ -95,9 +95,17 @@ public final class LedgerMemClient: Sendable {
     }
 
     private func sendRaw(_ method: String, path: String, body: Data?, query: [URLQueryItem]?) async throws -> (Data, HTTPURLResponse) {
-        guard var components = URLComponents(url: baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false) else {
+        // Build the URL via URLComponents using `percentEncodedPath` so any
+        // encoding we already applied to the id segment is preserved verbatim.
+        // `appendingPathComponent` and `components.path =` both treat their
+        // argument as raw and re-encode `%`, which double-encodes path ids.
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
             throw LedgerMemError.invalidURL
         }
+        let basePath = components.percentEncodedPath
+        let trimmed = basePath.hasSuffix("/") ? String(basePath.dropLast()) : basePath
+        let normalized = path.hasPrefix("/") ? path : "/\(path)"
+        components.percentEncodedPath = trimmed + normalized
         if let query { components.queryItems = query }
         guard let url = components.url else { throw LedgerMemError.invalidURL }
 
@@ -117,13 +125,19 @@ public final class LedgerMemClient: Sendable {
             do {
                 let (data, response) = try await transport.send(req)
                 if Self.isRetryable(status: response.statusCode), attempt < maxRetries {
-                    try await Task.sleep(nanoseconds: Self.retryDelayNs(attempt: attempt))
+                    let hint = Self.retryAfterNs(from: response)
+                    let delay = hint ?? Self.retryDelayNs(attempt: attempt)
+                    try await Task.sleep(nanoseconds: delay)
                     attempt += 1
                     continue
                 }
                 return (data, response)
             } catch is CancellationError {
                 throw CancellationError()
+            } catch let urlError as URLError where urlError.code == .cancelled {
+                // URLSession surfaces caller cancellation as URLError(.cancelled);
+                // treat it like CancellationError rather than a retryable failure.
+                throw urlError
             } catch {
                 if attempt < maxRetries {
                     try await Task.sleep(nanoseconds: Self.retryDelayNs(attempt: attempt))
@@ -136,13 +150,29 @@ public final class LedgerMemClient: Sendable {
     }
 
     private static func isRetryable(status: Int) -> Bool {
-        status == 429 || (500..<600).contains(status)
+        // 501 Not Implemented is permanent — retrying wastes round-trips.
+        if status == 501 { return false }
+        return status == 429 || (500..<600).contains(status)
     }
 
     private static func retryDelayNs(attempt: Int) -> UInt64 {
         let shift = min(attempt, 20)
         let capped = min(retryBaseDelayNs &* (UInt64(1) << shift), retryMaxDelayNs)
         return UInt64.random(in: 0...capped)
+    }
+
+    /// Parse a Retry-After header (delta-seconds form), capped at
+    /// `retryMaxDelayNs`. HTTP-date form is intentionally not supported
+    /// here to avoid pulling in date-parsing surface; servers issuing it
+    /// fall back to backoff.
+    private static func retryAfterNs(from response: HTTPURLResponse) -> UInt64? {
+        let raw = (response.value(forHTTPHeaderField: "Retry-After")
+            ?? response.value(forHTTPHeaderField: "retry-after"))?
+            .trimmingCharacters(in: .whitespaces)
+        guard let raw, !raw.isEmpty, let secs = UInt64(raw) else { return nil }
+        let ns = secs.multipliedReportingOverflow(by: 1_000_000_000)
+        if ns.overflow { return retryMaxDelayNs }
+        return min(ns.partialValue, retryMaxDelayNs)
     }
 
     private func ensureSuccess(_ response: HTTPURLResponse, data: Data) throws {
