@@ -63,8 +63,8 @@ public final class LedgerMemClient: Sendable {
     }
 
     public func delete(id: String) async throws {
-        let (_, response) = try await sendRaw("DELETE", path: "/v1/memories/\(escape(id))", body: nil, query: nil)
-        try ensureSuccess(response, data: Data())
+        let (data, response) = try await sendRaw("DELETE", path: "/v1/memories/\(escape(id))", body: nil, query: nil)
+        try ensureSuccess(response, data: data)
     }
 
     public func list(limit: Int? = nil, cursor: String? = nil, actorId: String? = nil) async throws -> ListResponse {
