@@ -4,8 +4,8 @@ import Foundation
 import FoundationNetworking
 #endif
 
-public final class LedgerMemClient: Sendable {
-    public static let defaultBaseURL = URL(string: "https://api.proofly.dev")!
+public final class MnemoClient: Sendable {
+    public static let defaultBaseURL = URL(string: "https://api.getmnemo.xyz")!
     private static let version = "0.1.0"
     public static let defaultMaxRetries = 3
     private static let retryBaseDelayNs: UInt64 = 200_000_000
@@ -39,7 +39,7 @@ public final class LedgerMemClient: Sendable {
         self.apiKey = apiKey
         self.workspaceId = workspaceId
         self.baseURL = baseURL
-            ?? ProcessInfo.processInfo.environment["LEDGERMEM_API_URL"].flatMap(URL.init(string:))
+            ?? ProcessInfo.processInfo.environment["GETMNEMO_API_URL"].flatMap(URL.init(string:))
             ?? Self.defaultBaseURL
         self.transport = transport
         self.maxRetries = max(0, maxRetries)
@@ -90,7 +90,7 @@ public final class LedgerMemClient: Sendable {
         do {
             return try decoder.decode(R.self, from: data)
         } catch {
-            throw LedgerMemError.decoding(String(describing: error))
+            throw MnemoError.decoding(String(describing: error))
         }
     }
 
@@ -100,14 +100,14 @@ public final class LedgerMemClient: Sendable {
         // `appendingPathComponent` and `components.path =` both treat their
         // argument as raw and re-encode `%`, which double-encodes path ids.
         guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
-            throw LedgerMemError.invalidURL
+            throw MnemoError.invalidURL
         }
         let basePath = components.percentEncodedPath
         let trimmed = basePath.hasSuffix("/") ? String(basePath.dropLast()) : basePath
         let normalized = path.hasPrefix("/") ? path : "/\(path)"
         components.percentEncodedPath = trimmed + normalized
         if let query { components.queryItems = query }
-        guard let url = components.url else { throw LedgerMemError.invalidURL }
+        guard let url = components.url else { throw MnemoError.invalidURL }
 
         var attempt = 0
         while true {
@@ -115,7 +115,7 @@ public final class LedgerMemClient: Sendable {
             req.httpMethod = method
             req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
             req.setValue(workspaceId, forHTTPHeaderField: "x-workspace-id")
-            req.setValue("ledgermem-swift/\(Self.version)", forHTTPHeaderField: "User-Agent")
+            req.setValue("getmnemo-swift/\(Self.version)", forHTTPHeaderField: "User-Agent")
             req.setValue("application/json", forHTTPHeaderField: "Accept")
             if let body {
                 req.httpBody = body
@@ -178,7 +178,7 @@ public final class LedgerMemClient: Sendable {
     private func ensureSuccess(_ response: HTTPURLResponse, data: Data) throws {
         guard !(200..<300).contains(response.statusCode) else { return }
         let body = String(data: data, encoding: .utf8) ?? ""
-        throw LedgerMemError.http(status: response.statusCode, body: body)
+        throw MnemoError.http(status: response.statusCode, body: body)
     }
 
     /// Percent-encode an identifier so it is safe to inject as a single path

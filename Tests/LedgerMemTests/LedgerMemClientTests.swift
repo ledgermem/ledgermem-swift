@@ -1,5 +1,5 @@
 import XCTest
-@testable import LedgerMem
+@testable import Mnemo
 
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -23,14 +23,14 @@ private func makeResponse(_ url: URL, status: Int) -> HTTPURLResponse {
     HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": "application/json"])!
 }
 
-final class LedgerMemClientTests: XCTestCase {
+final class MnemoClientTests: XCTestCase {
 
     func testSearchSendsBearerAndWorkspaceHeaders() async throws {
         let payload = #"{"hits":[{"id":"m1","content":"hi","score":0.9,"metadata":null}]}"#
         let stub = StubTransport { req in
             (payload.data(using: .utf8)!, makeResponse(req.url!, status: 200))
         }
-        let client = LedgerMemClient(
+        let client = MnemoClient(
             apiKey: "test-key",
             workspaceId: "ws_123",
             baseURL: URL(string: "https://api.test")!,
@@ -57,7 +57,7 @@ final class LedgerMemClientTests: XCTestCase {
         let stub = StubTransport { req in
             (payload.data(using: .utf8)!, makeResponse(req.url!, status: 200))
         }
-        let client = LedgerMemClient(
+        let client = MnemoClient(
             apiKey: "k", workspaceId: "w",
             baseURL: URL(string: "https://api.test")!,
             transport: stub
@@ -74,7 +74,7 @@ final class LedgerMemClientTests: XCTestCase {
         let stub = StubTransport { req in
             ("{\"error\":\"not found\"}".data(using: .utf8)!, makeResponse(req.url!, status: 404))
         }
-        let client = LedgerMemClient(
+        let client = MnemoClient(
             apiKey: "k", workspaceId: "w",
             baseURL: URL(string: "https://api.test")!,
             transport: stub
@@ -83,7 +83,7 @@ final class LedgerMemClientTests: XCTestCase {
         do {
             try await client.delete(id: "missing")
             XCTFail("expected throw")
-        } catch let LedgerMemError.http(status, _) {
+        } catch let MnemoError.http(status, _) {
             XCTAssertEqual(status, 404)
         } catch {
             XCTFail("unexpected error: \(error)")

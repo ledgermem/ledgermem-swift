@@ -23,7 +23,7 @@ public struct ListResponse: Codable, Sendable, Equatable {
     public let nextCursor: String?
 }
 
-public enum LedgerMemError: Error, Equatable, Sendable {
+public enum MnemoError: Error, Equatable, Sendable {
     case missingApiKey
     case missingWorkspaceId
     case invalidURL

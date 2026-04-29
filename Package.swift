@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "LedgerMem",
+    name: "Mnemo",
     platforms: [
         .iOS(.v16),
         .macOS(.v13),
@@ -10,17 +10,17 @@ let package = Package(
         .watchOS(.v9)
     ],
     products: [
-        .library(name: "LedgerMem", targets: ["LedgerMem"]),
+        .library(name: "Mnemo", targets: ["Mnemo"]),
     ],
     targets: [
         .target(
-            name: "LedgerMem",
-            path: "Sources/LedgerMem"
+            name: "Mnemo",
+            path: "Sources/Mnemo"
         ),
         .testTarget(
-            name: "LedgerMemTests",
-            dependencies: ["LedgerMem"],
-            path: "Tests/LedgerMemTests"
+            name: "MnemoTests",
+            dependencies: ["Mnemo"],
+            path: "Tests/MnemoTests"
         ),
     ]
 )
